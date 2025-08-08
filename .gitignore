@@ -1,0 +1,5 @@
+thirdparty/
+.cache/
+build/
+.fdignore
+main
