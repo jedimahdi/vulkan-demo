@@ -1,0 +1,4 @@
+leak:glfw
+leak:gtk
+leak:fontconfig
+leak:decor

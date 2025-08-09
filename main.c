@@ -6,10 +6,11 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#define MAX_FRAMES_IN_FLIGHT 5
+#define MAX_FRAMES_IN_FLIGHT 2
 
 #define CLAMP(x, a, b) (((x) < (a)) ? (a) : ((b) < (x)) ? (b) \
                                                         : (x))
+#define ALIGN_FORWARD(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
 GLFWwindow* window;
@@ -36,7 +37,7 @@ VkCommandPool command_pool;
 VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
 
 VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
-VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
+VkSemaphore* render_finished_per_image_semaphores;
 VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
 uint32_t current_frame = 0;
 
@@ -111,7 +112,7 @@ QueueFamilyIndices find_queue_families(VkPhysicalDevice device) {
 
     if (result.found_graphics_family && result.found_present_family) break;
   }
-
+  free(queue_families);
   return result;
 }
 
@@ -143,6 +144,15 @@ SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device) {
   return details;
 }
 
+void free_swapchain_support(SwapchainSupportDetails* details) {
+  free(details->formats);
+  free(details->present_modes);
+  details->formats = NULL;
+  details->formats_count = 0;
+  details->present_modes = NULL;
+  details->present_modes_count = 0;
+}
+
 bool is_device_suitable(VkPhysicalDevice device) {
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(device, &properties);
@@ -152,6 +162,7 @@ bool is_device_suitable(VkPhysicalDevice device) {
   bool swapchain_adequate = false;
   SwapchainSupportDetails swapchain_support = query_swapchain_support(device);
   swapchain_adequate = swapchain_support.formats_count != 0 && swapchain_support.present_modes_count;
+  free_swapchain_support(&swapchain_support);
 
   return properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
          queue_families.found_present_family &&
@@ -321,6 +332,8 @@ void create_swap_chain() {
 
   swapchain_image_format = surface_format.format;
   swapchain_extent = extent;
+
+  free_swapchain_support(&swapchain_support);
 }
 
 void create_image_views() {
@@ -355,7 +368,7 @@ VkShaderModule create_shader_module(const char* path) {
   long len = ftell(fp);
   rewind(fp);
 
-  char* code = aligned_alloc(8, len + 1);
+  char* code = aligned_alloc(16, ALIGN_FORWARD(len + 1, 16));
   fread(code, 1, len, fp);
   code[len] = '\0';
 
@@ -622,8 +635,15 @@ void create_sync_objects() {
 
   for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
     if (vkCreateSemaphore(device, &semaphore_info, NULL, &image_available_semaphores[i]) != VK_SUCCESS ||
-        vkCreateSemaphore(device, &semaphore_info, NULL, &render_finished_semaphores[i]) != VK_SUCCESS ||
         vkCreateFence(device, &fence_info, NULL, &in_flight_fences[i]) != VK_SUCCESS) {
+      fprintf(stderr, "Failed to create semaphores!\n");
+      exit(1);
+    }
+  }
+
+  render_finished_per_image_semaphores = malloc(sizeof(VkSemaphore) * swapchain_images_count);
+  for (uint32_t i = 0; i < swapchain_images_count; ++i) {
+    if (vkCreateSemaphore(device, &semaphore_info, NULL, &render_finished_per_image_semaphores[i]) != VK_SUCCESS) {
       fprintf(stderr, "Failed to create semaphores!\n");
       exit(1);
     }
@@ -641,7 +661,7 @@ void draw_frame() {
   record_command_buffer(command_buffers[current_frame], image_index);
 
   VkSemaphore wait_semaphores[] = {image_available_semaphores[current_frame]};
-  VkSemaphore signal_semaphores[] = {render_finished_semaphores[current_frame]};
+  VkSemaphore signal_semaphores[] = {render_finished_per_image_semaphores[image_index]};
   VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
   VkSubmitInfo submit_info = {
       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -726,8 +746,10 @@ int main() {
   vkDestroyCommandPool(device, command_pool, NULL);
   for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
     vkDestroySemaphore(device, image_available_semaphores[i], NULL);
-    vkDestroySemaphore(device, render_finished_semaphores[i], NULL);
     vkDestroyFence(device, in_flight_fences[i], NULL);
+  }
+  for (uint32_t i = 0; i < swapchain_images_count; ++i) {
+    vkDestroySemaphore(device, render_finished_per_image_semaphores[i], NULL);
   }
   vkDestroySwapchainKHR(device, swapchain, NULL);
   vkDestroySurfaceKHR(instance, surface, NULL);
