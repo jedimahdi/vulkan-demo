@@ -21,14 +21,6 @@
     if (_res != VK_SUCCESS) return _res; \
   } while (0)
 
-VkInstance instance = VK_NULL_HANDLE;
-VkSurfaceKHR surface = VK_NULL_HANDLE;
-static VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-static VkDevice device = VK_NULL_HANDLE;
-static VkQueue graphics_queue = VK_NULL_HANDLE;
-static VkQueue present_queue = VK_NULL_HANDLE;
-static VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-
 static void log_version() {
   uint32_t api_version;
   vkEnumerateInstanceVersion(&api_version);
@@ -38,7 +30,7 @@ static void log_version() {
   fprintf(stderr, "Vulkan API %u.%u.%u", apiVersionMajor, apiVersionMinor, apiVersionPatch);
 }
 
-static VkResult create_instance() {
+static VkResult create_instance(VkContext* ctx) {
   uint32_t glfw_extensions_count = 0;
   const char** glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extensions_count);
   if (!glfw_extensions || glfw_extensions_count == 0) {
@@ -73,28 +65,40 @@ static VkResult create_instance() {
       .ppEnabledLayerNames = validation_layers,
       .flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR,
   };
-  VkResult res = vkCreateInstance(&instance_info, NULL, &instance);
+  VkResult res = vkCreateInstance(&instance_info, NULL, &ctx->instance);
   free(extensions);
   if (res != VK_SUCCESS) {
     fprintf(stderr, "Failed to create vulkan instance!\n");
-    return res;
   }
-  return VK_SUCCESS;
+  return res;
 }
 
-static VkResult create_glfw_surface(GLFWwindow* window) {
-  VkResult res = glfwCreateWindowSurface(instance, window, NULL, &surface);
+static VkResult create_glfw_surface(GLFWwindow* window, VkContext* ctx) {
+  VkResult res = glfwCreateWindowSurface(ctx->instance, window, NULL, &ctx->surface);
   if (res != VK_SUCCESS) {
     fprintf(stderr, "Failed to create window surface!\n");
-    return res;
   }
+  return res;
+}
+
+VkResult vk_init(GLFWwindow* window, VkContext* ctx) {
+  ctx->instance = VK_NULL_HANDLE;
+  ctx->surface = VK_NULL_HANDLE;
+
+  log_version();
+  VK_RETURN(create_instance(ctx));
+  VK_RETURN(create_glfw_surface(window, ctx));
+
   return VK_SUCCESS;
 }
 
-VkResult init_vulkan(GLFWwindow* window) {
-  log_version();
-  VK_RETURN(create_instance());
-  VK_RETURN(create_glfw_surface(window));
-
-  return VK_SUCCESS;
+void vk_cleanup(VkContext* ctx) {
+  if (ctx->surface != VK_NULL_HANDLE) {
+    vkDestroySurfaceKHR(ctx->instance, ctx->surface, NULL);
+    ctx->surface = VK_NULL_HANDLE;
+  }
+  if (ctx->instance != VK_NULL_HANDLE) {
+    vkDestroyInstance(ctx->instance, NULL);
+    ctx->instance = VK_NULL_HANDLE;
+  }
 }

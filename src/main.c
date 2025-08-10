@@ -16,6 +16,9 @@
 #define ALIGN_FORWARD(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
+VkInstance instance;
+VkSurfaceKHR surface;
+
 GLFWwindow* window;
 VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 VkDevice device;
@@ -736,17 +739,19 @@ void cleanup() {
     vkDestroySemaphore(device, render_finished_per_image_semaphores[i], NULL);
   }
   vkDestroySwapchainKHR(device, swapchain, NULL);
-  vkDestroySurfaceKHR(instance, surface, NULL);
+  // vkDestroySurfaceKHR(instance, surface, NULL);
   vkDestroyDevice(device, NULL);
-  vkDestroyInstance(instance, NULL);
-  glfwDestroyWindow(window);
-  glfwTerminate();
+  // vkDestroyInstance(instance, NULL);
 }
 
 int main() {
   init_window();
 
-  VkResult res = init_vulkan(window);
+  VkContext ctx;
+  VkResult res = vk_init(window, &ctx);
+
+  instance = ctx.instance;
+  surface = ctx.surface;
 
   if (res != VK_SUCCESS) {
     fprintf(stderr, "WTF!\n");
@@ -778,6 +783,9 @@ int main() {
   }
   vkDeviceWaitIdle(device);
   cleanup();
+  vk_cleanup(&ctx);
+  glfwDestroyWindow(window);
+  glfwTerminate();
 
   return 0;
 }
