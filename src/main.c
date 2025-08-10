@@ -6,6 +6,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "base.h"
+#include "vk.h"
+
 #define MAX_FRAMES_IN_FLIGHT 2
 
 #define CLAMP(x, a, b) (((x) < (a)) ? (a) : ((b) < (x)) ? (b) \
@@ -14,12 +17,10 @@
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
 GLFWwindow* window;
-VkInstance instance;
 VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 VkDevice device;
 VkQueue graphics_queue;
 VkQueue present_queue;
-VkSurfaceKHR surface;
 
 VkSwapchainKHR swapchain;
 VkFormat swapchain_image_format;
@@ -693,16 +694,16 @@ void draw_frame() {
   current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-int main() {
+void init_window() {
   if (!glfwInit()) {
     fprintf(stderr, "Failed to initialize GLFW\n");
-    return EXIT_FAILURE;
+    exit(1);
   }
 
   if (!glfwVulkanSupported()) {
     fprintf(stderr, "Vulkan not supported\n");
     glfwTerminate();
-    return EXIT_FAILURE;
+    exit(1);
   }
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -712,28 +713,11 @@ int main() {
   if (!window) {
     fprintf(stderr, "Failed to create GLFW window\n");
     glfwTerminate();
-    return EXIT_FAILURE;
+    exit(1);
   }
+}
 
-  create_instance();
-  create_surface();
-  pick_physical_device();
-  create_logical_device();
-  create_swap_chain();
-  create_image_views();
-  create_render_pass();
-  create_graphics_pipeline();
-  create_framebuffers();
-  create_command_pool();
-  create_command_buffer();
-  create_sync_objects();
-
-  while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();
-    draw_frame();
-  }
-  vkDeviceWaitIdle(device);
-
+void cleanup() {
   for (uint32_t i = 0; i < swapchain_images_count; ++i) {
     vkDestroyFramebuffer(device, swapchain_framebuffers[i], NULL);
   }
@@ -757,6 +741,43 @@ int main() {
   vkDestroyInstance(instance, NULL);
   glfwDestroyWindow(window);
   glfwTerminate();
+}
+
+int main() {
+  init_window();
+
+  VkResult res = init_vulkan(window);
+
+  if (res != VK_SUCCESS) {
+    fprintf(stderr, "WTF!\n");
+    return 1;
+  }
+
+  // create_instance();
+  // create_surface();
+
+  pick_physical_device();
+  create_logical_device();
+  create_swap_chain();
+  create_image_views();
+  create_render_pass();
+  create_graphics_pipeline();
+  create_framebuffers();
+  create_command_pool();
+  create_command_buffer();
+  create_sync_objects();
+
+  uint32_t api_version;
+  LOG_INFO("GLFW %s", glfwGetVersionString());
+
+  LOG_INFO("test");
+
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+    draw_frame();
+  }
+  vkDeviceWaitIdle(device);
+  cleanup();
 
   return 0;
 }

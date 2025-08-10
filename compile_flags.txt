@@ -3,3 +3,4 @@
 -Wextra
 -Wno-unused
 -Wno-unused-parameter
+-I./thirdparty/stb
