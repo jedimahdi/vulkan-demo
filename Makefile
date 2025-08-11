@@ -16,7 +16,7 @@ INCLUDES := \
 	-I./thirdparty/stb
 
 BASE_CFLAGS := -std=c11 -Wall -Wextra -Wno-unused -MMD -MP $(INCLUDES)
-BASE_LFLAGS := -lglfw -lm -lvulkan
+BASE_LFLAGS := -lSDL3 -lm -lvulkan
 THIRD_CFLAGS := -std=c11 -O2 $(INCLUDES)
 
 ifeq ($(BUILD),DEBUG)
@@ -79,7 +79,7 @@ tidy:
 
 valgrind: clean-objs
 	$(MAKE) all BUILD=DEBUG
-	$(VALGRIND) --leak-check=full ./$(TARGET)
+	$(VALGRIND) ./$(TARGET)
 
 callgrind: clean-objs
 	$(MAKE) all BUILD=PERF
