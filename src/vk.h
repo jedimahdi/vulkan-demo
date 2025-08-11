@@ -1,7 +1,7 @@
 #pragma once
 
-#include <SDL3/SDL.h>
 #include <vulkan/vulkan.h>
+#include "window.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -41,6 +41,6 @@ typedef struct {
   uint32_t frame_index;
 } VkContext;
 
-VkResult vk_init(SDL_Window* window, VkContext* ctx);
+VkResult vk_init(Window* window, VkContext* ctx);
 VkResult create_shader_module(VkContext* ctx, const char* path, VkShaderModule* module);
 void vk_cleanup(VkContext* ctx);

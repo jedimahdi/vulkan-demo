@@ -1,6 +1,4 @@
 #include "vk.h"
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,9 +86,9 @@ static bool has_validation_layer(const char* name) {
 }
 
 static VkResult create_instance_sdl(VkContext* ctx) {
-  uint32_t sdl_exts_count = 0;
-  const char* const* sdl_exts = SDL_Vulkan_GetInstanceExtensions(&sdl_exts_count);
-  if (!sdl_exts || sdl_exts_count == 0) {
+  uint32_t window_exts_count = 0;
+  const char* const* window_exts = window_get_vulkan_required_extensions(&window_exts_count);
+  if (!window_exts || window_exts_count == 0) {
     fprintf(stderr, "Failed to get SDL3 required extensions\n");
     return VK_ERROR_EXTENSION_NOT_PRESENT;
   }
@@ -99,13 +97,13 @@ static VkResult create_instance_sdl(VkContext* ctx) {
   const char* debug_ext = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
   uint32_t max_extra = 2;
-  uint32_t max_total = sdl_exts_count + max_extra;
+  uint32_t max_total = window_exts_count + max_extra;
   const char** exts = malloc(max_total * sizeof(*exts));
   if (!exts) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
   uint32_t exts_count = 0;
-  for (uint32_t i = 0; i < sdl_exts_count; ++i) {
-    exts[exts_count++] = sdl_exts[i];
+  for (uint32_t i = 0; i < window_exts_count; ++i) {
+    exts[exts_count++] = window_exts[i];
   }
 
   VkInstanceCreateFlags flags = 0;
@@ -195,9 +193,9 @@ static VkResult setup_debug_utils(VkContext* ctx) {
   return pCreate(ctx->instance, &ci, NULL, &ctx->debug_messenger);
 }
 
-static VkResult create_sdl_surface(SDL_Window* window, VkContext* ctx) {
-  if (!SDL_Vulkan_CreateSurface(window, ctx->instance, NULL, &ctx->surface)) {
-    fprintf(stderr, "Failed to create window surface: %s\n", SDL_GetError());
+static VkResult create_sdl_surface(Window* window, VkContext* ctx) {
+  if (!window_create_vulkan_surface(window, ctx->instance, NULL, &ctx->surface)) {
+    fprintf(stderr, "Failed to create window surface\n");
     return VK_ERROR_INITIALIZATION_FAILED;
   }
   return VK_SUCCESS;
@@ -393,12 +391,12 @@ static VkPresentModeKHR choose_swap_present_mode(VkPresentModeKHR* available_pre
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VkExtent2D choose_swap_extent(SDL_Window* window, VkSurfaceCapabilitiesKHR* capabilities) {
+static VkExtent2D choose_swap_extent(Window* window, VkSurfaceCapabilitiesKHR* capabilities) {
   if (capabilities->currentExtent.width != UINT32_MAX) {
     return capabilities->currentExtent;
   } else {
     int width, height;
-    SDL_GetWindowSize(window, &width, &height);
+    window_get_drawable_size(window, &width, &height);
 
     VkExtent2D actual_extent = {
         .width = (uint32_t)width,
@@ -409,7 +407,7 @@ static VkExtent2D choose_swap_extent(SDL_Window* window, VkSurfaceCapabilitiesKH
   }
 }
 
-static VkResult create_swapchain(SDL_Window* window, VkContext* ctx) {
+static VkResult create_swapchain(Window* window, VkContext* ctx) {
   SwapchainSupportDetails swapchain_support = query_swapchain_support(ctx->physical_device, ctx);
 
   VkSurfaceFormatKHR surface_format = choose_swap_surface_format(swapchain_support.formats, swapchain_support.formats_count);
@@ -763,7 +761,7 @@ static VkResult create_command_buffer(VkContext* ctx) {
   return res;
 }
 
-VkResult vk_init(SDL_Window* window, VkContext* ctx) {
+VkResult vk_init(Window* window, VkContext* ctx) {
   memset(ctx, 0, sizeof(*ctx));
   ctx->instance = VK_NULL_HANDLE;
   ctx->debug_messenger = VK_NULL_HANDLE;
