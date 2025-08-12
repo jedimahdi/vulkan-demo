@@ -10,56 +10,57 @@ void render_init(RenderContext* render, VkContext* ctx) {
 void render_draw_quad(RenderContext* render) {
 }
 
-void render_game(RenderContext* render) {
-  VkContext* ctx = render->ctx;
-  vkWaitForFences(ctx->device, 1, &ctx->in_flight_fences[ctx->current_frame], VK_TRUE, UINT64_MAX);
+void acquire(VkContext* ctx) {
+  uint32_t current_frame = ctx->current_frame;
+  VkFence* fence = &ctx->in_flight_fences[current_frame];
 
-  uint32_t image_index;
-  VkResult result = vkAcquireNextImageKHR(
-      ctx->device, ctx->swapchain,
-      UINT64_MAX,
-      ctx->image_available_semaphores[ctx->current_frame],
-      VK_NULL_HANDLE,
-      &image_index);
+  vkWaitForFences(ctx->device, 1, fence, VK_TRUE, UINT64_MAX);
+  vkResetFences(ctx->device, 1, fence);
 
-  // 3. If the image is already in use, wait for its fence
-  // if (images_in_flight[image_index] != VK_NULL_HANDLE) {
-  //   vkWaitForFences(ctx->device, 1, &images_in_flight[image_index], VK_TRUE, UINT64_MAX);
-  // }
-  // images_in_flight[image_index] = ctx->in_flight_fences[ctx->current_frame];
+  vkAcquireNextImageKHR(ctx->device, ctx->swapchain, UINT64_MAX, ctx->image_available_semaphores[current_frame],
+                        VK_NULL_HANDLE, &ctx->image_index);
+}
 
-  // 4. Reset the fence for the current frame
-  vkResetFences(ctx->device, 1, &ctx->in_flight_fences[ctx->current_frame]);
+void submit(VkContext* ctx) {
+  uint32_t current_frame = ctx->current_frame;
+  uint32_t image_index = ctx->image_index;
 
-  // 5. Record command buffer using image_index
-  record_command_buffer(ctx, ctx->command_buffers[ctx->current_frame], image_index);
-
-  // 6. Submit work
   VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
   VkSubmitInfo submit_info = {
       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
       .waitSemaphoreCount = 1,
-      .pWaitSemaphores = &ctx->image_available_semaphores[ctx->current_frame],
+      .pWaitSemaphores = &ctx->image_available_semaphores[current_frame],
       .pWaitDstStageMask = wait_stages,
       .commandBufferCount = 1,
-      .pCommandBuffers = &ctx->command_buffers[ctx->current_frame],
+      .pCommandBuffers = &ctx->command_buffers[current_frame],
       .signalSemaphoreCount = 1,
-      .pSignalSemaphores = &ctx->render_finished_semaphores[ctx->current_frame]};
+      .pSignalSemaphores = &ctx->render_finished_semaphores[image_index]};
 
-  vkQueueSubmit(ctx->graphics_queue, 1, &submit_info, ctx->in_flight_fences[ctx->current_frame]);
+  vkQueueSubmit(ctx->graphics_queue, 1, &submit_info, ctx->in_flight_fences[current_frame]);
+}
 
-  // 7. Present
+void present(VkContext* ctx) {
+  uint32_t image_index = ctx->image_index;
   VkPresentInfoKHR present_info = {
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       .waitSemaphoreCount = 1,
-      .pWaitSemaphores = &ctx->render_finished_semaphores[ctx->current_frame],
+      .pWaitSemaphores = &ctx->render_finished_semaphores[image_index],
       .swapchainCount = 1,
       .pSwapchains = &ctx->swapchain,
-      .pImageIndices = &image_index};
+      .pImageIndices = &ctx->image_index};
   vkQueuePresentKHR(ctx->present_queue, &present_info);
 
-  // 8. Move to next frame
   ctx->current_frame = (ctx->current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void render_game(RenderContext* render) {
+  VkContext* ctx = render->ctx;
+
+  acquire(ctx);
+
+  record_command_buffer(ctx, ctx->command_buffers[ctx->current_frame], ctx->image_index);
+  submit(ctx);
+  present(ctx);
 }
 
 static VkResult record_command_buffer(VkContext* ctx, VkCommandBuffer cmd, uint32_t image_index) {

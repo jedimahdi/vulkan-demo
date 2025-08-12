@@ -699,52 +699,30 @@ static VkResult create_sync_objects(VkContext* ctx) {
       .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
       .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
-  for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL, &ctx->acquire_semaphores[i]) != VK_SUCCESS) {
+  ctx->render_finished_semaphores = malloc(sizeof(VkSemaphore) * ctx->swapchain_images_count);
+
+  for (uint32_t i = 0; i < ctx->swapchain_images_count; ++i) {
+    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL, &ctx->render_finished_semaphores[i]) != VK_SUCCESS) {
       fprintf(stderr, "Failed to create semaphores!\n");
-      goto fail;
-    }
-    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL, &ctx->acquire_semaphores[i]) != VK_SUCCESS) {
-      fprintf(stderr, "Failed to create semaphores!\n");
-      goto fail;
+      return VK_ERROR_INITIALIZATION_FAILED;
     }
   }
 
+  ctx->image_available_semaphores = malloc(sizeof(VkSemaphore) * MAX_FRAMES_IN_FLIGHT);
+
   for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL,
-                          &ctx->image_available_semaphores[i]) != VK_SUCCESS) {
-      fprintf(stderr, "Failed to create image_available semaphore for frame %u\n", i);
-      goto fail;
-    }
-    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL,
-                          &ctx->render_finished_semaphores[i]) != VK_SUCCESS) {
-      fprintf(stderr, "Failed to create render_finished semaphore for frame %u\n", i);
-      goto fail;
+    if (vkCreateSemaphore(ctx->device, &semaphore_info, NULL, &ctx->image_available_semaphores[i]) != VK_SUCCESS) {
+      fprintf(stderr, "Failed to create semaphores!\n");
+      return VK_ERROR_INITIALIZATION_FAILED;
     }
     if (vkCreateFence(ctx->device, &fence_info, NULL,
                       &ctx->in_flight_fences[i]) != VK_SUCCESS) {
       fprintf(stderr, "Failed to create in_flight fence for frame %u\n", i);
-      goto fail;
+      return VK_ERROR_INITIALIZATION_FAILED;
     }
   }
-  return VK_SUCCESS;
 
-fail:
-  for (uint32_t j = 0; j < MAX_FRAMES_IN_FLIGHT; ++j) {
-    if (ctx->image_available_semaphores[j] != VK_NULL_HANDLE) {
-      vkDestroySemaphore(ctx->device, ctx->image_available_semaphores[j], NULL);
-      ctx->image_available_semaphores[j] = VK_NULL_HANDLE;
-    }
-    if (ctx->render_finished_semaphores[j] != VK_NULL_HANDLE) {
-      vkDestroySemaphore(ctx->device, ctx->render_finished_semaphores[j], NULL);
-      ctx->render_finished_semaphores[j] = VK_NULL_HANDLE;
-    }
-    if (ctx->in_flight_fences[j] != VK_NULL_HANDLE) {
-      vkDestroyFence(ctx->device, ctx->in_flight_fences[j], NULL);
-      ctx->in_flight_fences[j] = VK_NULL_HANDLE;
-    }
-  }
-  return VK_ERROR_INITIALIZATION_FAILED;
+  return VK_SUCCESS;
 }
 
 static VkResult create_command_buffer(VkContext* ctx) {
@@ -803,6 +781,8 @@ fail:
 }
 
 void vk_cleanup(VkContext* ctx) {
+  uint32_t images_count = ctx->swapchain_images_count;
+
   if (ctx->device != VK_NULL_HANDLE) {
     vkDeviceWaitIdle(ctx->device);
   }
@@ -812,13 +792,16 @@ void vk_cleanup(VkContext* ctx) {
       vkDestroySemaphore(ctx->device, ctx->image_available_semaphores[j], NULL);
       ctx->image_available_semaphores[j] = VK_NULL_HANDLE;
     }
-    if (ctx->render_finished_semaphores[j] != VK_NULL_HANDLE) {
-      vkDestroySemaphore(ctx->device, ctx->render_finished_semaphores[j], NULL);
-      ctx->render_finished_semaphores[j] = VK_NULL_HANDLE;
-    }
     if (ctx->in_flight_fences[j] != VK_NULL_HANDLE) {
       vkDestroyFence(ctx->device, ctx->in_flight_fences[j], NULL);
       ctx->in_flight_fences[j] = VK_NULL_HANDLE;
+    }
+  }
+
+  for (uint32_t i = 0; i < images_count; ++i) {
+    if (ctx->render_finished_semaphores[i] != VK_NULL_HANDLE) {
+      vkDestroySemaphore(ctx->device, ctx->render_finished_semaphores[i], NULL);
+      ctx->render_finished_semaphores[i] = VK_NULL_HANDLE;
     }
   }
 

@@ -30,15 +30,11 @@ typedef struct {
 
   VkCommandPool command_pool;
   VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
-  VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
-  VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
   VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
+  VkSemaphore* image_available_semaphores;
+  VkSemaphore* render_finished_semaphores;
   uint32_t current_frame;
-
-  VkFence frame_fences[MAX_FRAMES_IN_FLIGHT];
-  VkSemaphore acquire_semaphores[MAX_FRAMES_IN_FLIGHT];
-  VkSemaphore* submit_semaphores;  // size = swapchain_image_count
-  uint32_t frame_index;
+  uint32_t image_index;
 } VkContext;
 
 VkResult vk_init(Window* window, VkContext* ctx);
