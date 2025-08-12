@@ -116,7 +116,8 @@ void* window_get_gl_proc_address(const char* name) {
   return SDL_GL_GetProcAddress(name);
 }
 
-bool window_create_vulkan_surface(Window* w, VkInstance instance, const void* allocator, VkSurfaceKHR* out_surface) {
+bool window_create_vulkan_surface(Window* w,
+                                  VkInstance instance, const struct VkAllocationCallbacks* allocator, VkSurfaceKHR* out_surface) {
   if (!SDL_Vulkan_CreateSurface(w->handle, instance, allocator, out_surface)) {
     fprintf(stderr, "SDL_Vulkan_CreateSurface failed: %s\n", SDL_GetError());
     return false;

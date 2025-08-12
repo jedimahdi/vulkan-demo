@@ -23,13 +23,15 @@ void* window_get_handle(Window* win);
 void window_destroy(Window* win);
 
 // --- Vulkan ---
-#ifndef VK_VERSION_1_0
-typedef struct VkInstance_T* VkInstance;
-typedef struct VkSurfaceKHR_T* VkSurfaceKHR;
-typedef uint64_t VkFlags;
-#endif
+struct VkInstance_T;
+struct VkSurfaceKHR_T;
+struct VkAllocationCallbacks;
 
-bool window_create_vulkan_surface(Window* win, VkInstance instance, const void* allocator, VkSurfaceKHR* out_surface);
+bool window_create_vulkan_surface(
+    Window* win,
+    struct VkInstance_T* instance,
+    const struct VkAllocationCallbacks* allocator,
+    struct VkSurfaceKHR_T** out_surface);
 const char** window_get_vulkan_required_extensions(uint32_t* count);
 
 // --- OpenGL ---
